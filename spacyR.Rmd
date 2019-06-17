@@ -1,0 +1,150 @@
+---
+title: "NLP with spaCy in R"
+output:
+  html_document:
+    df_print: paged
+---
+## Packages
+```{r message=FALSE}
+#install.packages('spacyr')
+library('spacyr')
+#install.packages('tidytext')
+library('tidytext')
+library('dplyr')
+#install.packages('coreNLP')
+library('coreNLP')
+```
+
+## Setup a pretrained english model 
+```{r message=FALSE}
+#spacy_install(conda = "auto", version = "latest", lang_models = "en_core_web_lg",
+#              python_version = "3.6", envname = "spacy_condaenv",
+#              python_path = NULL, prompt = TRUE)
+spacy_initialize(model = "en_core_web_lg", python_executable = NULL,
+                 virtualenv = NULL, condaenv = NULL, ask = FALSE,
+                 refresh_settings = FALSE, save_profile = FALSE, check_env = TRUE, entity = TRUE)
+```
+
+## Tokenisation 
+```{r}
+text <- "The Radch Empire was created thousands of years ago. Its leader is Anaander Mianaai. She's many-bodied and divided in at least 2 factions."
+tokenised <- spacy_tokenize(text, what = "word", remove_punct = TRUE,
+                            remove_url = FALSE, remove_numbers = TRUE,
+                            remove_separators = TRUE, remove_symbols = FALSE, padding = TRUE, multithread = TRUE, output = "list")
+tokenised
+```
+
+## Sentence segemntation
+```{r}
+text <- "The Radch Empire was created thousands of years ago. Its leader is Anaander Mianaai She's many-bodied and divided in at least 2 factions."
+sentences <- spacy_tokenize(text, what = "sentence", remove_punct = TRUE,
+                            remove_url = FALSE, remove_numbers = TRUE,
+                            remove_separators = TRUE, remove_symbols = FALSE, padding = TRUE,
+                            multithread = TRUE, output = "list")
+sentences
+```
+
+## Lemmatisation 
+```{r}
+text <- "The Radch Empire was created thousands of years ago. Its leader is Anaander Mianaai. She's many-bodied and divided in at least 2 factions."
+lemmatised <- spacy_parse(text, pos = FALSE, tag = FALSE, lemma = TRUE,
+                          entity = FALSE, dependency = FALSE, nounphrase = FALSE,
+                          multithread = TRUE)
+lemmatised %>% filter(token != lemma)
+```
+
+## Stopwords
+```{r}
+unnest_tokens(lemmatised, word, token, to_lower = TRUE) %>%
+  anti_join(stop_words) %>% `[[`('word')
+
+lemmatised <- spacy_parse(text, pos = FALSE, tag = FALSE, lemma = TRUE,
+                          entity = FALSE, dependency = FALSE, nounphrase = FALSE,
+                          multithread = TRUE, additional_attributes = 'is_stop')
+lemmatised %>% filter(is_stop != TRUE) %>% `[[`('token')
+```
+
+## Parts of speech
+```{r}
+pos <- spacy_parse(text, pos = TRUE, tag = TRUE, lemma = FALSE,
+                   entity = FALSE, dependency = FALSE, nounphrase = FALSE,
+                   multithread = TRUE)
+pos %>% filter(pos == 'ADJ' | pos == 'VERB')
+```
+
+## Dependencies 
+```{r}
+text <- "The Radch Empire was created thousands of years ago. Its leader is Anaander Mianaai. She's many-bodied and divided in at least 2 factions."
+dep <- spacy_parse(text, pos = FALSE, tag = FALSE, lemma = FALSE,
+                   entity = FALSE, dependency = TRUE, nounphrase = FALSE,
+                   multithread = TRUE)
+dep %>% filter(sentence_id == 2)
+```
+
+## Noun phrases
+```{r}
+text <- "The Radch Empire was created thousands of years ago. Its leader is Anaander Mianaai. She's many-bodied and divided in at least 2 factions."
+nounphrases <- spacy_parse(text, pos = FALSE, tag = FALSE, lemma = FALSE,
+                           entity = FALSE, dependency = FALSE, nounphrase = TRUE,
+                           multithread = TRUE)
+nounphrase_extract(nounphrases, concatenator = "_")
+```
+
+## Entities 
+```{r}
+text <- "The Radch Empire was created thousands of years ago. Its leader is Anaander Mianaai. She's many-bodied and divided in at least 2 factions."
+entities <- spacy_parse(text, pos = FALSE, tag = FALSE, lemma = FALSE,
+                        entity = TRUE, dependency = FALSE, nounphrase = FALSE,
+                        multithread = TRUE)
+entity_extract(entities, type = 'all', concatenator = "_")
+```
+
+## Word embeddings 
+```{r}
+text <- "apple orange chair rumpelstiltskin"
+vectors <- spacy_parse(text, pos = FALSE, tag = FALSE, lemma = FALSE,
+                       entity = FALSE, dependency = FALSE, nounphrase = FALSE,
+                       multithread = TRUE, 
+                       additional_attributes = c('has_vector', 'vector_norm', 'vector'))
+vectors[1:2,] %>% select(token, has_vector, vector_norm) 
+
+sum(matrix(unlist(vectors$vector[1]), ncol =300) * matrix(unlist(vectors$vector[2]), ncol=300)) / (vectors$vector_norm[1][[1]] * vectors$vector_norm[2][[1]])
+
+sum(matrix(unlist(vectors$vector[1]), ncol =300) * matrix(unlist(vectors$vector[3]), ncol=300)) / (vectors$vector_norm[1][[1]] * vectors$vector_norm[3][[1]])
+
+sum(matrix(unlist(vectors$vector[1]), ncol =300) * matrix(unlist(vectors$vector[4]), ncol=300)) / (vectors$vector_norm[1][[1]] * vectors$vector_norm[4][[1]])
+```
+
+## Other attributes 
+```{r}
+text <- "apple orange chair rumpelstiltskin"
+attributes <- spacy_parse(text, pos = FALSE, tag = FALSE, lemma = FALSE,
+                          entity = FALSE, dependency = FALSE, nounphrase = FALSE,
+                          multithread = TRUE, 
+                          additional_attributes = c('lower_', 'shape_', 'is_alpha', 'like_num', 'is_oov'))
+attributes[1:2,] %>% select(lower_, shape_, is_alpha, like_num, is_oov) 
+
+
+#spacy_finalize
+spacy_finalize()
+```
+
+
+## coreNLP
+```{r}
+downloadCoreNLP()
+initCoreNLP(type='english_all')
+text <- "The Radch Empire was created thousands of years ago. Its leader is Anaander Mianaai. She's many-bodied and divided in at least 2 factions."
+annObj <- annotateString(text) 
+```
+
+## Open information extraction 
+```{r}
+getOpenIE(annObj) %>% select(subject, relation, object)
+```
+
+## Coreference resolution 
+```{r}
+getCoreference(annObj)
+```
+
